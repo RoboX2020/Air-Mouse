@@ -1,0 +1,101 @@
+– Arduino Code–
+
+[install MPU9250_asukiaaa.h library from lib manager in Arduino IDE]
+
+#include <Wire.h>
+#include <MPU9250_asukiaaa.h>
+
+MPU9250_asukiaaa mySensor;
+const int buttonPin = 7;
+
+// Gyro offsets (calibration)
+float gyroX_offset = 0, gyroY_offset = 0;
+
+void setup() {
+  Serial.begin(115200);
+  Wire.begin();
+  mySensor.setWire(&Wire);
+  mySensor.beginAccel();
+  mySensor.beginGyro();
+  mySensor.beginMag();
+  pinMode(buttonPin, INPUT_PULLUP);
+
+  delay(2000);  // Let sensor settle
+
+  // --- Gyro calibration: average 100 samples at rest ---
+  long sumX = 0, sumY = 0;
+  for (int i = 0; i < 100; i++) {
+    mySensor.gyroUpdate();
+    sumX += mySensor.gyroX();
+    sumY += mySensor.gyroY();
+    delay(10);
+  }
+  gyroX_offset = sumX / 100.0;
+  gyroY_offset = sumY / 100.0;
+}
+
+void loop() {
+  mySensor.gyroUpdate();
+  int leftClick = digitalRead(buttonPin) == LOW ? 1 : 0;
+
+  // Subtract offsets
+  float x = mySensor.gyroX() - gyroX_offset;
+  float y = mySensor.gyroY() - gyroY_offset;
+
+  // Send as comma-separated text
+  Serial.print(x);
+  Serial.print(",");
+  Serial.print(y);
+  Serial.print(",");
+  Serial.println(leftClick);
+
+  delay(10);
+}
+
+
+
+
+
+
+
+
+Python file to run on your computer where you are using the mouse…
+Because arduino uno does not have the drivers to behave as a cursor…
+
+​​pip install pyserial pynput
+
+import serial
+from pynput.mouse import Controller, Button
+
+ser = serial.Serial('/dev/ttyACM0', 115200)
+ser.reset_input_buffer()
+mouse = Controller()
+factor = 0.10   # Mouse speed multiplier
+deadzone = 0.03 # Ignore tiny jitters
+
+while True:
+    try:
+        line = ser.readline().decode('utf-8').strip()
+    except UnicodeDecodeError:
+        continue
+    try:
+        parts = line.split(',')
+        x = float(parts[0])
+        y = float(parts[1])
+        click = int(parts[2])
+        # Deadzone: zero out small numbers
+        if abs(x) < deadzone:
+            x = 0
+        if abs(y) < deadzone:
+            y = 0
+        mouse.move(int(x * factor), int(y * factor))
+        if click:
+            mouse.press(Button.left)
+        else:
+            mouse.release(Button.left)
+    except Exception:
+        pass  # Skips invalid lines
+
+
+
+
